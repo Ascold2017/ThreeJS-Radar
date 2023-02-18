@@ -3,7 +3,7 @@ import { Circle } from "konva/lib/shapes/Circle";
 import { Line } from "konva/lib/shapes/Line";
 import { Text } from "konva/lib/shapes/Text";
 import { Stage } from "konva/lib/Stage";
-import { Mesh, OrthographicCamera, PlaneGeometry,  Scene, ShaderMaterial, SphereGeometry,  WebGLRenderer } from "three";
+import { Mesh, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, SphereGeometry, WebGLRenderer } from "three";
 import LoopHelper from "./LoopHelper";
 import TerrainGenerator from "./TerrainGenerator";
 
@@ -12,14 +12,16 @@ export default class Core {
     private readonly scene: Scene;
     private camera: OrthographicCamera | null = null;
     private readonly mapSize = 1000;
-    private readonly antennaHeight = 25;
+    private readonly antennaHeight = 35;
     private terrainMesh: Mesh | null = null;
     private target: Mesh | null = null;
     private rotation: number = 0;
+    private gain = 0.7;
     constructor(canvas: HTMLCanvasElement) {
         this.renderer = new WebGLRenderer({ canvas, alpha: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.setSize(600, 600);
+        this.renderer.setSize(800, 800);
+        this.renderer.shadowMap.enabled = true;
         this.scene = new Scene();
         const loopHelper = new LoopHelper();
         this.initScene().then(() => {
@@ -27,9 +29,13 @@ export default class Core {
             loopHelper.addLoop('targetFly', () => {
                 this.target!.position.x -= 0.1;
                 this.target!.position.y -= 0.2;
+                this.rotation += 1;
+                if (this.rotation >= 360) {
+                    this.rotation = 0;
+                }
                 this.updateTerrainUniforms();
                 this.updateTargetUniforms()
-                
+
             })
         });
         this.createIndicatorScreen();
@@ -37,75 +43,91 @@ export default class Core {
 
     async initScene() {
         const terrainGenerator = new TerrainGenerator();
-        const { data, width, height } = await terrainGenerator.generateHeightmap('/terrain3.png', 28)
-        
+        const { data, width, height } = await terrainGenerator.generateHeightmapFromGoogleMaps(28)
+
         this.createPlaneTerrain(data, width, height);
-        this.setupCamera(width, height);
+        this.setupCamera();
         this.createTarget();
-        
+
     }
 
     createIndicatorScreen() {
         const stage = new Stage({
             container: 'indicatorContainer',
-            width: 640,
-            height: 640
+            width: 840,
+            height: 840
         });
         const layer = new Layer();
-        
+
 
         const circle = new Circle({
             x: stage.width() / 2,
             y: stage.width() / 2,
             radius: stage.width() / 2 - 20,
-            stroke: 'yellow',
+            stroke: 'white',
             strokeWidth: 4
         });
 
         layer.add(circle);
-        const outerRadius = stage.width() /2 - 20;
-        const innerRadius = stage.width() / 2 - 35;
-        for (let i = 0; i< 360; i+=10) {
-            let x0 = innerRadius * Math.cos(i * (Math.PI/180) - Math.PI/2) +  stage.width() /2;
-            let y0 = innerRadius * Math.sin(i * (Math.PI/180) - Math.PI/2) +  stage.width() /2;;
-            let x1 = outerRadius * Math.cos(i * (Math.PI/180) - Math.PI/2) +  stage.width() /2;;
-            let y1 = outerRadius * Math.sin(i * (Math.PI/180) - Math.PI/2) +  stage.width() /2;;
+        const outerRadius = stage.width() / 2 - 20;
+        const innerRadius = stage.width() / 20;
+        for (let i = 0; i < 360; i += 10) {
+            let x0 = innerRadius * Math.cos(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;
+            let y0 = innerRadius * Math.sin(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;;
+            let x1 = outerRadius * Math.cos(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;;
+            let y1 = outerRadius * Math.sin(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;;
             layer.add(new Line({
                 points: [x0, y0, x1, y1],
-                stroke: 'yellow',
+                stroke: 'white',
+                strokeWidth: 0.1
             }));
             layer.add(new Text({
                 text: i.toString(),
-                x: x0,
-                y: y0,
-                rotationDeg: i + 180,
-                fill: 'yellow',
+                x: x1,
+                y: y1,
+                rotationDeg: i,
+                fill: 'white',
                 fontSize: 13,
                 align: 'center',
                 width: 50,
                 offsetX: 25,
-                offsetY: -20
+                offsetY: 15
             }))
         }
 
-        layer.add(new Line({
-            points: [stage.width() /2 - 20, stage.width()/2, stage.width() /2 + 20, stage.width()/2,],
-            stroke: 'yellow',
-            strokeWidth: 1
-        }))
-        layer.add(new Line({
-            points: [stage.width() /2, stage.width()/2 - 20, stage.width() /2, stage.width()/2 + 20],
-            stroke: 'yellow',
-            strokeWidth: 1
-        }))
+        for (let r = 0; r < 10; r++) {
+            layer.add(new Circle({
+                x: stage.width() / 2,
+                y: stage.width() / 2,
+                radius: (r * (stage.width() / 2)) / 10,
+                stroke: 'white',
+                strokeWidth: 0.2
+            }));
+        }
         stage.add(layer);
+        const layer2 = new Layer();
+
+        let x0 = stage.width() / 2;
+        let y0 = stage.width() / 2;
+        let x1 = stage.width() / 2 * Math.cos(this.rotation * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2 - 20;
+        let y1 = stage.width() / 2 * Math.sin(this.rotation * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2 - 20;
+        const verticeLine = new Line({
+            points: [x0, y0, x1, y1],
+            stroke: 'yellow',
+            strokeWidth: 2,
+        });
+
+
+        //layer2.add(verticeLine)
+        stage.add(layer2)
         layer.draw();
     }
 
     createTarget() {
         const shaderMaterial = new ShaderMaterial({
             uniforms: {
-                uLightPosition: { value:  [0, 0, -this.antennaHeight] },
+                uLightPosition: { value: [0, 0, -this.antennaHeight] },
+                uGain: { value: this.gain },
                 uAngle: { value: this.rotation },
                 uRange: { value: this.mapSize / 2 },
                 uVisibilityK: { value: 0.8 }
@@ -119,12 +141,13 @@ export default class Core {
                 varying float dx;
                 varying float dy;
                 const float PI = 3.14159265358979;
+                
                 void main() {
                     vec4 worldPosition = vec4(modelMatrix * vec4(position, 1.0));
                     dx = worldPosition.x - uLightPosition.x;
 	                dy = worldPosition.y - uLightPosition.y;
                     float angleRad = uAngle * PI / 180.0;
-                    vec3 angleDirection = vec3(sin(angleRad),cos(angleRad),0.0);
+                    vec3 angleDirection = vec3(sin(angleRad), cos(angleRad), 0.0);
                     vec3 lightDirection = normalize(vec3(dx,dy,0));
                     
                     float height = -uLightPosition.z;
@@ -142,33 +165,39 @@ export default class Core {
                     vAngleCoef = (1.0 - ang / 360.0);
 
                     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+                    
                 }
             `,
             fragmentShader: `
                 uniform float uRange;
+                uniform float uGain;
                 varying float vLightWeighting;
                 varying float vAngleCoef;
                 varying float dx;
                 varying float dy;
                 void main() {
                     float r = sqrt(dx * dx + dy * dy);
-                    if (vLightWeighting <= 0.3 || r > uRange) {
+                    if (r > uRange) {
                         discard;
                     } else {
-                        gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0) * vLightWeighting * vAngleCoef;
+                        if (vLightWeighting * vAngleCoef <= (1.0 - uGain)) {
+                            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                        } else {
+                            gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0) * vLightWeighting * vAngleCoef;
+                        }
                     }
                     
                 }
             `
         });
-        const target = new Mesh(new SphereGeometry(2), shaderMaterial)
-        target.position.set(100, 100, 25);
+        const target = new Mesh(new SphereGeometry(3), shaderMaterial)
+        target.position.set(300, 300, 25);
         this.target = target;
         this.scene.add(target)
     }
 
     async setupCamera() {
-        this.camera = new OrthographicCamera(-this.mapSize /2, this.mapSize /2, -this.mapSize /2, this.mapSize /2, 0, 200);
+        this.camera = new OrthographicCamera(-this.mapSize / 2, this.mapSize / 2, -this.mapSize / 2, this.mapSize / 2, 0, 200);
         this.camera.position.set(0, 0, 100);
         this.camera.lookAt(this.terrainMesh!.position)
     }
@@ -188,7 +217,8 @@ export default class Core {
 
         const shaderMaterial = new ShaderMaterial({
             uniforms: {
-                uLightPosition: { value:  [0, 0, -this.antennaHeight] },
+                uLightPosition: { value: [0, 0, -this.antennaHeight] },
+                uGain: { value: this.gain },
                 uAngle: { value: this.rotation },
                 uRange: { value: this.mapSize / 2 }
             },
@@ -218,20 +248,27 @@ export default class Core {
                     vAngleCoef = (1.0 - ang / 360.0);
 
                     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+
                 }
             `,
             fragmentShader: `
                 uniform float uRange;
+                uniform float uGain;
                 varying float vLightWeighting;
                 varying float vAngleCoef;
                 varying float dx;
                 varying float dy;
                 void main() {
                     float r = sqrt(dx * dx + dy * dy);
-                    if (vLightWeighting <= 0.6 || r > uRange) {
+                    if (r > uRange) {
                         discard;
                     } else {
-                        gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0) * vLightWeighting * vAngleCoef;
+                        if (vLightWeighting * vAngleCoef <= (1.0 - uGain)) {
+                            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                        } else {
+                            vec3 finalColor = vec3(1.0, 1.0, 0.0) * vLightWeighting * vAngleCoef;
+                            gl_FragColor = vec4(finalColor, 1.0);
+                        }
                     }
                     
                 }
@@ -244,17 +281,11 @@ export default class Core {
     }
 
     updateTerrainUniforms() {
-        this.terrainMesh!.material.uniforms.uAngle.value += 1;
-        if (this.terrainMesh!.material.uniforms.uAngle.value >= 360) {
-            this.terrainMesh!.material.uniforms.uAngle.value = 0;
-        }
+        this.terrainMesh!.material.uniforms.uAngle.value = this.rotation
     }
 
     updateTargetUniforms() {
-        this.target!.material.uniforms.uAngle.value += 1;
-        if (this.target!.material.uniforms.uAngle.value >= 360) {
-            this.target!.material.uniforms.uAngle.value = 0;
-        }
+        this.target!.material.uniforms.uAngle.value = this.rotation;
     }
 
     render() {
