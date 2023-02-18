@@ -7,5 +7,6 @@ Radar display on Three.js, using a real terrain model
 - Typescript
 - Vite (vanilla-ts template)
 - GLSL
+- Google Static map (for get heightmap)
 
 ![](/public/Screenshot.png)
