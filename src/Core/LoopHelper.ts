@@ -1,6 +1,8 @@
 interface ILoop {
-    func: (time: number) => void;
+    func: (time?: number) => void;
     isPaused: boolean;
+    isFixed?: boolean;
+    interval?: number;
     time: 0;
 }
 
@@ -29,8 +31,12 @@ export default class LoopHelper {
         }
     }
 
-    addLoop(name: string, func: (time: number) => void) {
+    addLoop(name: string, func: (time?: number) => void) {
         this.loops[name] = { func, isPaused: false, time: 0 };
+    }
+
+    addFixedLoop(name: string, interval: number, func: () => void) {
+        this.loops[name] = { func, isPaused: false, time: 0, isFixed: true, interval }
     }
     removeLoop(name: string) {
         delete this.loops[name];
@@ -46,9 +52,20 @@ export default class LoopHelper {
         this.lastTime = Date.now();
 
         for (const l in this.loops) {
-            if (!this.loops[l].isPaused) {
-                this.loops[l].time += delta;
-                this.loops[l].func(this.loops[l].time);
+            const loop = this.loops[l];
+            if (!loop.isPaused) {
+                
+                if (loop.isFixed) {
+                    if (loop.time >= loop.interval!) {
+                        loop.time = 0;
+                        loop.func();
+                    }
+                    loop.time += delta;
+                } else {
+                    loop.time += delta;
+                    loop.func(loop.time);
+                }
+                
             }
         }
     }

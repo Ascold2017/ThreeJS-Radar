@@ -1,136 +1,31 @@
-import { Layer } from "konva/lib/Layer";
-import { Circle } from "konva/lib/shapes/Circle";
-import { Line } from "konva/lib/shapes/Line";
-import { Text } from "konva/lib/shapes/Text";
-import { Stage } from "konva/lib/Stage";
-import { Mesh, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, SphereGeometry, WebGLRenderer } from "three";
-import LoopHelper from "./LoopHelper";
+
+import { Mesh, PlaneGeometry, Scene, ShaderMaterial, SphereGeometry } from "three";
+
 import TerrainGenerator from "./TerrainGenerator";
 
-export default class Core {
-    private readonly renderer: WebGLRenderer;
-    private readonly scene: Scene;
-    private camera: OrthographicCamera | null = null;
-    private readonly mapSize = 1000;
-    private readonly antennaHeight = 35;
-    private terrainMesh: Mesh | null = null;
-    private target: Mesh | null = null;
-    private rotation: number = 0;
-    private gain = 0.7;
-    constructor(canvas: HTMLCanvasElement) {
-        this.renderer = new WebGLRenderer({ canvas, alpha: true });
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.setSize(800, 800);
-        this.renderer.shadowMap.enabled = true;
-        this.scene = new Scene();
-        const loopHelper = new LoopHelper();
-        this.initScene().then(() => {
-            loopHelper.addLoop('renderLoop', () => this.render());
-            loopHelper.addLoop('targetFly', () => {
-                this.target!.position.x -= 0.1;
-                this.target!.position.y -= 0.2;
-                this.rotation += 1;
-                if (this.rotation >= 360) {
-                    this.rotation = 0;
-                }
-                this.updateTerrainUniforms();
-                this.updateTargetUniforms()
+export default class WorldScene {
+    readonly scene = new Scene();
+    readonly mapSize = 1000;
 
-            })
-        });
-        this.createIndicatorScreen();
+    constructor() {
+        this.initScene()
     }
 
-    async initScene() {
+    private async initScene() {
         const terrainGenerator = new TerrainGenerator();
         const { data, width, height } = await terrainGenerator.generateHeightmapFromGoogleMaps(28)
 
         this.createPlaneTerrain(data, width, height);
-        this.setupCamera();
-        this.createTarget();
-
     }
 
-    createIndicatorScreen() {
-        const stage = new Stage({
-            container: 'indicatorContainer',
-            width: 840,
-            height: 840
-        });
-        const layer = new Layer();
-
-
-        const circle = new Circle({
-            x: stage.width() / 2,
-            y: stage.width() / 2,
-            radius: stage.width() / 2 - 20,
-            stroke: 'white',
-            strokeWidth: 4
-        });
-
-        layer.add(circle);
-        const outerRadius = stage.width() / 2 - 20;
-        const innerRadius = stage.width() / 20;
-        for (let i = 0; i < 360; i += 10) {
-            let x0 = innerRadius * Math.cos(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;
-            let y0 = innerRadius * Math.sin(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;;
-            let x1 = outerRadius * Math.cos(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;;
-            let y1 = outerRadius * Math.sin(i * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2;;
-            layer.add(new Line({
-                points: [x0, y0, x1, y1],
-                stroke: 'white',
-                strokeWidth: 0.1
-            }));
-            layer.add(new Text({
-                text: i.toString(),
-                x: x1,
-                y: y1,
-                rotationDeg: i,
-                fill: 'white',
-                fontSize: 13,
-                align: 'center',
-                width: 50,
-                offsetX: 25,
-                offsetY: 15
-            }))
-        }
-
-        for (let r = 0; r < 10; r++) {
-            layer.add(new Circle({
-                x: stage.width() / 2,
-                y: stage.width() / 2,
-                radius: (r * (stage.width() / 2)) / 10,
-                stroke: 'white',
-                strokeWidth: 0.2
-            }));
-        }
-        stage.add(layer);
-        const layer2 = new Layer();
-
-        let x0 = stage.width() / 2;
-        let y0 = stage.width() / 2;
-        let x1 = stage.width() / 2 * Math.cos(this.rotation * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2 - 20;
-        let y1 = stage.width() / 2 * Math.sin(this.rotation * (Math.PI / 180) - Math.PI / 2) + stage.width() / 2 - 20;
-        const verticeLine = new Line({
-            points: [x0, y0, x1, y1],
-            stroke: 'yellow',
-            strokeWidth: 2,
-        });
-
-
-        //layer2.add(verticeLine)
-        stage.add(layer2)
-        layer.draw();
-    }
-
-    createTarget() {
+    addTarget(name: string, position: { x: number, y: number, z: number }, visibilityK: number) {
         const shaderMaterial = new ShaderMaterial({
             uniforms: {
-                uLightPosition: { value: [0, 0, -this.antennaHeight] },
-                uGain: { value: this.gain },
-                uAngle: { value: this.rotation },
+                uLightPosition: { value: [0, 0, 0] },
+                uGain: { value: 0 },
+                uAngle: { value: 0 },
                 uRange: { value: this.mapSize / 2 },
-                uVisibilityK: { value: 0.8 }
+                uVisibilityK: { value: visibilityK }
             },
             vertexShader: `
                 uniform vec3 uLightPosition;
@@ -190,19 +85,14 @@ export default class Core {
                 }
             `
         });
-        const target = new Mesh(new SphereGeometry(3), shaderMaterial)
-        target.position.set(300, 300, 25);
-        this.target = target;
-        this.scene.add(target)
+        const target = new Mesh(new SphereGeometry(3), shaderMaterial);
+        target.name = name;
+        target.position.set(position.x, position.y, position.z);
+        this.scene.add(target);
+        return target;
     }
 
-    async setupCamera() {
-        this.camera = new OrthographicCamera(-this.mapSize / 2, this.mapSize / 2, -this.mapSize / 2, this.mapSize / 2, 0, 200);
-        this.camera.position.set(0, 0, 100);
-        this.camera.lookAt(this.terrainMesh!.position)
-    }
-
-    async createPlaneTerrain(data: Float32Array, widthSegments: number, heightSegments: number) {
+    private async createPlaneTerrain(data: Float32Array, widthSegments: number, heightSegments: number) {
 
         const terrainGeometry = new PlaneGeometry(this.mapSize, this.mapSize, widthSegments - 1, heightSegments - 1);
         // Apply height data to plane
@@ -217,9 +107,9 @@ export default class Core {
 
         const shaderMaterial = new ShaderMaterial({
             uniforms: {
-                uLightPosition: { value: [0, 0, -this.antennaHeight] },
-                uGain: { value: this.gain },
-                uAngle: { value: this.rotation },
+                uLightPosition: { value: [0, 0, 0] },
+                uGain: { value: 0 },
+                uAngle: { value: 0 },
                 uRange: { value: this.mapSize / 2 }
             },
             vertexShader: `
@@ -274,21 +164,18 @@ export default class Core {
                 }
             `
         });
-        this.terrainMesh = new Mesh(terrainGeometry, shaderMaterial);
-        this.terrainMesh.rotateX(180 * (Math.PI / 180))
+        const terrainMesh = new Mesh(terrainGeometry, shaderMaterial);
+        terrainMesh.name = 'terrain';
+        terrainMesh.rotateX(180 * (Math.PI / 180))
 
-        this.scene.add(this.terrainMesh);
+        this.scene.add(terrainMesh);
     }
 
-    updateTerrainUniforms() {
-        this.terrainMesh!.material.uniforms.uAngle.value = this.rotation
-    }
-
-    updateTargetUniforms() {
-        this.target!.material.uniforms.uAngle.value = this.rotation;
-    }
-
-    render() {
-        this.renderer.render(this.scene, this.camera!)
+    updateUniforms({ rotation, gain, antennaHeight }: { rotation: number, gain: number, antennaHeight: number}) {
+        this.scene.children.filter(o => o.isMesh).forEach((mesh: Mesh) => {
+            mesh.material.uniforms.uAngle.value = rotation;
+            mesh.material.uniforms.uGain.value = gain;
+            mesh.material.uniforms.uLightPosition.value = [0, 0, -antennaHeight];
+        });
     }
 }

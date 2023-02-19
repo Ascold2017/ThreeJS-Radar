@@ -1,6 +1,6 @@
-import Core from './Core';
+import Radar from './Core/Radar';
 import './style.css'
-
+/*
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <div id="container">
 <canvas width="800" height="800" id="canvas"></canvas>
@@ -8,6 +8,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 </div>
  
 `
+*/
 
-const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
-new Core(canvas)
+//const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
+// new Core(canvas)
+
+new Radar('app')
