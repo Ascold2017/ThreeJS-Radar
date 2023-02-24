@@ -1,4 +1,4 @@
-import { WebGLRenderer, OrthographicCamera, Scene, WebGLRenderTarget, Mesh, PlaneGeometry, MeshBasicMaterial, MeshStandardMaterial, ShaderMaterial } from "three";
+import { WebGLRenderer, OrthographicCamera, Scene, WebGLRenderTarget, Mesh, PlaneGeometry, ShaderMaterial } from "three";
 import { Layer } from "konva/lib/Layer";
 import { Circle } from "konva/lib/shapes/Circle";
 import { Line } from "konva/lib/shapes/Line";
@@ -24,6 +24,7 @@ export default class Radar extends LoopHelper {
         this.renderer = new WebGLRenderer({ alpha: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(800, 800);
+        this.renderer.shadowMap.enabled = true;
         this.setupPPI();
         this.initFlyObjects();
 
